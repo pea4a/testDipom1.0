@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, get, } from "firebase/database";
+import { getDatabase, ref, set, onValue } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
@@ -36,6 +36,7 @@ function App() {
   const [userKeys, setUserKeys] = useState({});
 
   useEffect(() => {
+    // Отримуємо повідомлення з Firebase
     const messagesRef = ref(db, 'messages/');
     onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
@@ -44,108 +45,65 @@ function App() {
         setChatMessages(messagesArray);
       }
     });
+
+    // Отримуємо ключі користувачів з Firebase
+    const keysRef = ref(db, 'keys/');
+    onValue(keysRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const keys = {};
+        Object.keys(data).forEach(user => {
+          keys[user] = {
+            keyPair: ec.keyFromPrivate(data[user].privateKey, 'hex'),
+          };
+        });
+        setUserKeys(keys);
+      }
+    });
   }, []);
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     if (users[login] && users[login].password === password) {
-      console.log('User logged in:', login);
-      const userRef = ref(db, `users/${login}`);
-
-      // Спроба отримати ключі користувача з Firebase
-      const snapshot = await get(userRef);
-      let keyPair;
-
-      if (snapshot.exists()) {
-        console.log('Keys found in Firebase for user:', login);
-        const data = snapshot.val();
-        keyPair = {
-          privateKey: ec.keyFromPrivate(data.privateKey, 'hex'),
-          publicKey: data.publicKey, // публічний ключ для шифрування
-        };
-      } else {
-        console.log('No keys found in Firebase, generating new keys...');
-        const newKeyPair = ec.genKeyPair();
-        keyPair = {
-          privateKey: newKeyPair.getPrivate('hex'),
-          publicKey: newKeyPair.getPublic('hex'),
-        };
-        // Зберегти пару ключів у Firebase
-        await set(userRef, keyPair);
-      }
-
-      setUserKeys({ ...userKeys, [login]: { keyPair } });
       setCurrentUser(login);
     } else {
       alert('Невірний логін або пароль');
     }
   };
 
-  const handleMessageChange = (event) => {
-    setMessage(event.target.value);
-  };
-
   const encryptMessage = (recipient) => {
     const sender = currentUser;
-    console.log('Encrypting message for recipient:', recipient);
-
     if (!userKeys[sender] || !userKeys[recipient]) {
       alert('Неможливо знайти ключі для користувачів');
-      console.error('Missing keys for sender or recipient', { sender, recipient });
       return;
     }
 
     const senderKeyPair = userKeys[sender].keyPair;
-    const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair.publicKey, 'hex');
-
-    console.log('Sender KeyPair:', senderKeyPair);
-    console.log('Recipient Public Key:', recipientPublicKey);
+    const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair.getPublic('hex'), 'hex');
 
     const sharedSecret = senderKeyPair.derive(recipientPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
-    console.log('Shared secret (hex):', sharedSecretHex);
-
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
     return encrypted;
   };
 
   const decryptMessage = (encryptedMessage, sender) => {
     const recipient = currentUser;
-    console.log('Decrypting message from sender:', sender);
-
     if (!userKeys[recipient] || !userKeys[sender]) {
       alert('Неможливо знайти ключі для користувачів');
-      console.error('Missing keys for recipient or sender', { recipient, sender });
       return 'Помилка при дешифруванні';
     }
 
     const recipientKeyPair = userKeys[recipient].keyPair;
-    const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair.publicKey, 'hex');
-
-    console.log('Recipient KeyPair:', recipientKeyPair);
-    console.log('Sender Public Key:', senderPublicKey);
+    const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair.getPublic('hex'), 'hex');
 
     const sharedSecret = recipientKeyPair.derive(senderPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
-    console.log('Shared secret (hex) for decryption:', sharedSecretHex);
-
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex).toString(CryptoJS.enc.Utf8);
     return decrypted || 'Помилка при дешифруванні';
   };
 
-  const sendMessage = async () => {
+  const sendMessage = () => {
     if (!message) return;
-
-    // Отримання ключів для відправника та отримувача з Firebase
-    const recipientKeyRef = ref(db, `users/${recipient}`);
-    const recipientSnapshot = await get(recipientKeyRef);
-
-    if (recipientSnapshot.exists()) {
-      setUserKeys({ ...userKeys, [recipient]: { keyPair: recipientSnapshot.val() } });
-    } else {
-      alert('Неможливо знайти ключ отримувача');
-      return;
-    }
-
     const encrypted = encryptMessage(recipient);
     if (!encrypted) return;
 
@@ -156,9 +114,12 @@ function App() {
       encrypted: true,
     };
 
+    // Додаємо повідомлення до Firebase
     const messagesRef = ref(db, 'messages/' + Date.now());
-    await set(messagesRef, newMsg);
+    set(messagesRef, newMsg);
 
+    // Додаємо повідомлення до історії чату
+    setChatMessages(prevMessages => [...prevMessages, newMsg]);
     setMessage('');
   };
 
@@ -222,7 +183,7 @@ function App() {
 
       <div>
         <h2>Повідомлення</h2>
-        <textarea value={message} onChange={handleMessageChange} />
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} />
         <button onClick={sendMessage}>Відправити</button>
       </div>
 
@@ -234,4 +195,4 @@ function App() {
   );
 }
 
-export default App
+export default App;
