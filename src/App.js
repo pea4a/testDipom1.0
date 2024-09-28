@@ -2,8 +2,25 @@ import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import messages from './messages';
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, set, onValue, get } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBrM1KkCfH6ey2PMhUxXsuy58wlQXTbJcE",
+  authDomain: "testreact-f3af2.firebaseapp.com",
+  databaseURL: "https://testreact-f3af2-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "testreact-f3af2",
+  storageBucket: "testreact-f3af2.appspot.com",
+  messagingSenderId: "948033424433",
+  appId: "1:948033424433:web:bea705b21ed3d46a7a9910"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 // Список користувачів із логінами та паролями
 const users = {
@@ -21,7 +38,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState(messages);
   const [userKeys, setUserKeys] = useState({});
 
-  // Ініціалізація ключів при завантаженні
+  // Ініціалізація ключів та отримання повідомлень з Firebase
   useEffect(() => {
     const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
     const storedKeys = JSON.parse(localStorage.getItem('userKeys')) || {};
@@ -36,12 +53,21 @@ function App() {
 
     setUserKeys(storedKeys);
     setChatMessages(storedMessages);
+
+    // Отримуємо повідомлення з Firebase
+    const messagesRef = ref(db, 'messages/');
+    onValue(messagesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const messagesArray = Object.values(data);
+        setChatMessages(messagesArray);
+      }
+    });
   }, []);
 
   // Авторизація користувача
   const handleLogin = () => {
     if (users[login] && users[login].password === password) {
-      // Якщо ключі вже є, використовуємо їх, інакше створюємо нові
       if (!userKeys[login]) {
         const keyPair = ec.genKeyPair();
         userKeys[login] = { keyPair, timestamp: Date.now() };
@@ -62,46 +88,19 @@ function App() {
   // Шифрування повідомлення
   const encryptMessage = (recipient) => {
     const sender = currentUser;
-    
-    // Перевіряємо наявність ключів
     if (!userKeys[sender] || !userKeys[recipient]) {
       alert('Неможливо знайти ключі для користувачів');
       return;
     }
-
     const sharedSecret = userKeys[sender].keyPair.derive(userKeys[recipient].keyPair.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
-
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
     return encrypted;
-  };
-
-  // Дешифрування повідомлення
-  const decryptMessage = (encryptedMessage, sender) => {
-    try {
-      const recipient = currentUser;
-
-      // Перевіряємо наявність ключів
-      if (!userKeys[recipient] || !userKeys[sender]) {
-        return 'Неможливо знайти ключі для користувачів';
-      }
-
-      const sharedSecret = userKeys[recipient].keyPair.derive(userKeys[sender].keyPair.getPublic());
-      const sharedSecretHex = sharedSecret.toString(16);
-
-      const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex);
-      const originalMessage = decrypted.toString(CryptoJS.enc.Utf8);
-
-      return originalMessage || 'Неможливо розшифрувати повідомлення';
-    } catch (error) {
-      return 'Помилка дешифрування';
-    }
   };
 
   // Відправка повідомлення
   const sendMessage = () => {
     if (!message) return;
-
     const encrypted = encryptMessage(recipient);
     if (!encrypted) return;
 
@@ -111,6 +110,10 @@ function App() {
       message: encrypted,
       encrypted: true,
     };
+
+    // Додаємо повідомлення до Firebase
+    const messagesRef = ref(db, 'messages/' + Date.now());
+    set(messagesRef, newMsg);
 
     // Додаємо повідомлення до історії чату
     const updatedMessages = [...chatMessages, newMsg];
@@ -123,7 +126,6 @@ function App() {
   const displayMessages = () => {
     return chatMessages.map((msg, index) => {
       if (msg.recipient === currentUser) {
-        // Дешифрувати повідомлення для поточного користувача
         const decrypted = decryptMessage(msg.message, msg.sender);
         return (
           <div key={index}>
@@ -131,14 +133,12 @@ function App() {
           </div>
         );
       } else if (msg.sender === currentUser) {
-        // Якщо це повідомлення від поточного користувача, показати його в оригінальному вигляді
         return (
           <div key={index}>
             <strong>{msg.sender}:</strong> {msg.message}
           </div>
         );
       } else {
-        // Для інших користувачів показати зашифрований текст
         return (
           <div key={index}>
             <strong>{msg.sender}:</strong> <em>Зашифроване повідомлення</em>
