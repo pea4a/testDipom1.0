@@ -3,7 +3,7 @@ import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import messages from './messages';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue } from "firebase/database";
+import { getDatabase, ref, set, onValue, get } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
@@ -40,30 +40,23 @@ function App() {
   // Ініціалізація ключів та отримання повідомлень з Firebase
   useEffect(() => {
     const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-    const storedKeys = JSON.parse(localStorage.getItem('userKeys')) || {};
 
-    const now = Date.now();
-    Object.keys(storedKeys).forEach((user) => {
-      if (now - storedKeys[user].timestamp > 3600000) { // 1 година
-        const newKeyPair = ec.genKeyPair();
-        storedKeys[user].keyPair = {
-          privateKey: newKeyPair.getPrivate('hex'),
-          publicKey: newKeyPair.getPublic('hex'),
-        };
-        storedKeys[user].timestamp = now;
+    // Отримуємо ключі з Firebase
+    const keysRef = ref(db, 'userKeys/');
+    get(keysRef).then((snapshot) => {
+      if (snapshot.exists()) {
+        const firebaseKeys = snapshot.val();
+        const deserializedKeys = Object.keys(firebaseKeys).reduce((acc, user) => {
+          acc[user] = {
+            keyPair: ec.keyFromPrivate(firebaseKeys[user].privateKey, 'hex'),
+          };
+          return acc;
+        }, {});
+
+        setUserKeys(deserializedKeys);
       }
     });
 
-    // Десеріалізуємо ключі з localStorage
-    const deserializedKeys = Object.keys(storedKeys).reduce((acc, user) => {
-      acc[user] = {
-        keyPair: ec.keyFromPrivate(storedKeys[user].keyPair.privateKey, 'hex'),
-        timestamp: storedKeys[user].timestamp,
-      };
-      return acc;
-    }, {});
-
-    setUserKeys(deserializedKeys);
     setChatMessages(storedMessages);
 
     // Отримуємо повідомлення з Firebase
@@ -86,9 +79,13 @@ function App() {
           privateKey: newKeyPair.getPrivate('hex'),
           publicKey: newKeyPair.getPublic('hex'),
         };
-        userKeys[login] = { keyPair, timestamp: Date.now() };
-        setUserKeys({ ...userKeys });
-        localStorage.setItem('userKeys', JSON.stringify(userKeys));
+        const newUserKeys = { ...userKeys, [login]: { keyPair } };
+        setUserKeys(newUserKeys);
+
+        // Зберігаємо ключі у Firebase
+        const keysRef = ref(db, 'userKeys/' + login);
+        set(keysRef, { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey });
+
       }
       setCurrentUser(login);
     } else {
@@ -152,7 +149,7 @@ function App() {
     const messagesRef = ref(db, 'messages/' + Date.now());
     set(messagesRef, newMsg);
 
-    // Додаємо повідомлення до історії чату
+    // Оновлюємо повідомлення у локальному стані
     const updatedMessages = [...chatMessages, newMsg];
     setChatMessages(updatedMessages);
     localStorage.setItem('chatMessages', JSON.stringify(updatedMessages));
