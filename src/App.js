@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
-import messages from './messages';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, get } from "firebase/database";
 
@@ -21,7 +20,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Список користувачів із логінами та паролями
 const users = {
   alice: { password: 'alice123' },
   bob: { password: 'bob123' },
@@ -34,13 +32,11 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [recipient, setRecipient] = useState('bob');
   const [message, setMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState(messages);
+  const [chatMessages, setChatMessages] = useState([]);
   const [userKeys, setUserKeys] = useState({});
 
   // Ініціалізація ключів та отримання повідомлень з Firebase
   useEffect(() => {
-    const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-
     // Отримуємо ключі з Firebase
     const keysRef = ref(db, 'userKeys/');
     get(keysRef).then((snapshot) => {
@@ -48,7 +44,10 @@ function App() {
         const firebaseKeys = snapshot.val();
         const deserializedKeys = Object.keys(firebaseKeys).reduce((acc, user) => {
           acc[user] = {
-            keyPair: ec.keyFromPrivate(firebaseKeys[user].privateKey, 'hex'),
+            keyPair: {
+              privateKey: ec.keyFromPrivate(firebaseKeys[user].privateKey, 'hex'),
+              publicKey: ec.keyFromPublic(firebaseKeys[user].publicKey, 'hex')
+            }
           };
           return acc;
         }, {});
@@ -56,8 +55,6 @@ function App() {
         setUserKeys(deserializedKeys);
       }
     });
-
-    setChatMessages(storedMessages);
 
     // Отримуємо повідомлення з Firebase
     const messagesRef = ref(db, 'messages/');
@@ -85,7 +82,6 @@ function App() {
         // Зберігаємо ключі у Firebase
         const keysRef = ref(db, 'userKeys/' + login);
         set(keysRef, { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey });
-
       }
       setCurrentUser(login);
     } else {
@@ -149,10 +145,9 @@ function App() {
     const messagesRef = ref(db, 'messages/' + Date.now());
     set(messagesRef, newMsg);
 
-    // Оновлюємо повідомлення у локальному стані
+    // Додаємо повідомлення до історії чату
     const updatedMessages = [...chatMessages, newMsg];
     setChatMessages(updatedMessages);
-    localStorage.setItem('chatMessages', JSON.stringify(updatedMessages));
     setMessage('');
   };
 
