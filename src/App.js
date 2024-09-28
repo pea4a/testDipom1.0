@@ -3,7 +3,7 @@ import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import messages from './messages';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, get } from "firebase/database";
+import { getDatabase, ref, set, onValue } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
@@ -96,6 +96,19 @@ function App() {
     const sharedSecretHex = sharedSecret.toString(16);
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
     return encrypted;
+  };
+
+  // Дешифрування повідомлення
+  const decryptMessage = (encryptedMessage, sender) => {
+    const recipient = currentUser;
+    if (!userKeys[recipient] || !userKeys[sender]) {
+      alert('Неможливо знайти ключі для користувачів');
+      return 'Помилка при дешифруванні';
+    }
+    const sharedSecret = userKeys[recipient].keyPair.derive(userKeys[sender].keyPair.getPublic());
+    const sharedSecretHex = sharedSecret.toString(16);
+    const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex).toString(CryptoJS.enc.Utf8);
+    return decrypted || 'Помилка при дешифруванні';
   };
 
   // Відправка повідомлення
