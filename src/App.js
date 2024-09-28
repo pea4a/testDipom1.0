@@ -18,7 +18,6 @@ const firebaseConfig = {
   appId: "1:948033424433:web:bea705b21ed3d46a7a9910"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
@@ -45,26 +44,26 @@ function App() {
 
     const now = Date.now();
     Object.keys(storedKeys).forEach((user) => {
-      // Перевірка на наявність ключа та його термін дії
-      if (!storedKeys[user].keyPair) {
-        storedKeys[user].keyPair = ec.genKeyPair(); // Генерація нового ключа, якщо його немає
-        storedKeys[user].timestamp = now;
-      } else if (now - storedKeys[user].timestamp > 3600000) { // 1 година
-        storedKeys[user].keyPair = ec.genKeyPair();
+      if (now - storedKeys[user].timestamp > 3600000) { // 1 година
+        const newKeyPair = ec.genKeyPair();
+        storedKeys[user].keyPair = {
+          privateKey: newKeyPair.getPrivate('hex'),
+          publicKey: newKeyPair.getPublic('hex'),
+        };
         storedKeys[user].timestamp = now;
       }
     });
 
-    // Зберігання ключів у правильному форматі
-    const updatedKeys = Object.keys(storedKeys).reduce((acc, user) => {
+    // Десеріалізуємо ключі з localStorage
+    const deserializedKeys = Object.keys(storedKeys).reduce((acc, user) => {
       acc[user] = {
-        keyPair: storedKeys[user].keyPair.getPublic('hex'), // Зберігання публічного ключа у форматі hex
+        keyPair: ec.keyFromPrivate(storedKeys[user].keyPair.privateKey, 'hex'),
         timestamp: storedKeys[user].timestamp,
       };
       return acc;
     }, {});
 
-    setUserKeys(updatedKeys);
+    setUserKeys(deserializedKeys);
     setChatMessages(storedMessages);
 
     // Отримуємо повідомлення з Firebase
@@ -82,7 +81,11 @@ function App() {
   const handleLogin = () => {
     if (users[login] && users[login].password === password) {
       if (!userKeys[login]) {
-        const keyPair = ec.genKeyPair();
+        const newKeyPair = ec.genKeyPair();
+        const keyPair = {
+          privateKey: newKeyPair.getPrivate('hex'),
+          publicKey: newKeyPair.getPublic('hex'),
+        };
         userKeys[login] = { keyPair, timestamp: Date.now() };
         setUserKeys({ ...userKeys });
         localStorage.setItem('userKeys', JSON.stringify(userKeys));
@@ -105,10 +108,10 @@ function App() {
       alert('Неможливо знайти ключі для користувачів');
       return;
     }
-    
-    const senderKeyPair = ec.keyFromPrivate(userKeys[sender].keyPair);
-    const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair, 'hex');
-    
+
+    const senderKeyPair = userKeys[sender].keyPair;
+    const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair.publicKey, 'hex');
+
     const sharedSecret = senderKeyPair.derive(recipientPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
@@ -122,10 +125,10 @@ function App() {
       alert('Неможливо знайти ключі для користувачів');
       return 'Помилка при дешифруванні';
     }
-    
-    const recipientKeyPair = ec.keyFromPrivate(userKeys[recipient].keyPair);
-    const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair, 'hex');
-    
+
+    const recipientKeyPair = userKeys[recipient].keyPair;
+    const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair.publicKey, 'hex');
+
     const sharedSecret = recipientKeyPair.derive(senderPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex).toString(CryptoJS.enc.Utf8);
