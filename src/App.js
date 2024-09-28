@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
+import messages from './messages';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, get } from "firebase/database";
+import { getDatabase, ref, set, onValue } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
@@ -32,31 +33,40 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [recipient, setRecipient] = useState('bob');
   const [message, setMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessages, setChatMessages] = useState(messages);
   const [userKeys, setUserKeys] = useState({});
 
-  // Ініціалізація ключів та отримання повідомлень з Firebase
   useEffect(() => {
-    // Отримуємо ключі з Firebase
-    const keysRef = ref(db, 'userKeys/');
-    get(keysRef).then((snapshot) => {
-      if (snapshot.exists()) {
-        const firebaseKeys = snapshot.val();
-        const deserializedKeys = Object.keys(firebaseKeys).reduce((acc, user) => {
-          acc[user] = {
-            keyPair: {
-              privateKey: ec.keyFromPrivate(firebaseKeys[user].privateKey, 'hex'),
-              publicKey: ec.keyFromPublic(firebaseKeys[user].publicKey, 'hex')
-            }
-          };
-          return acc;
-        }, {});
+    const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+    const storedKeys = JSON.parse(localStorage.getItem('userKeys')) || {};
 
-        setUserKeys(deserializedKeys);
+    const now = Date.now();
+    Object.keys(storedKeys).forEach((user) => {
+      if (now - storedKeys[user].timestamp > 3600000) {
+        const newKeyPair = ec.genKeyPair();
+        storedKeys[user].keyPair = {
+          privateKey: newKeyPair.getPrivate('hex'),
+          publicKey: newKeyPair.getPublic('hex'),
+        };
+        storedKeys[user].timestamp = now;
       }
     });
 
-    // Отримуємо повідомлення з Firebase
+    console.log('Loaded keys from localStorage:', storedKeys);
+
+    const deserializedKeys = Object.keys(storedKeys).reduce((acc, user) => {
+      acc[user] = {
+        keyPair: ec.keyFromPrivate(storedKeys[user].keyPair.privateKey, 'hex'),
+        timestamp: storedKeys[user].timestamp,
+      };
+      return acc;
+    }, {});
+
+    console.log('Deserialized keys:', deserializedKeys);
+
+    setUserKeys(deserializedKeys);
+    setChatMessages(storedMessages);
+
     const messagesRef = ref(db, 'messages/');
     onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
@@ -67,21 +77,18 @@ function App() {
     });
   }, []);
 
-  // Авторизація користувача
   const handleLogin = () => {
     if (users[login] && users[login].password === password) {
+      console.log('User logged in:', login);
       if (!userKeys[login]) {
         const newKeyPair = ec.genKeyPair();
         const keyPair = {
           privateKey: newKeyPair.getPrivate('hex'),
           publicKey: newKeyPair.getPublic('hex'),
         };
-        const newUserKeys = { ...userKeys, [login]: { keyPair } };
-        setUserKeys(newUserKeys);
-
-        // Зберігаємо ключі у Firebase
-        const keysRef = ref(db, 'userKeys/' + login);
-        set(keysRef, { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey });
+        userKeys[login] = { keyPair, timestamp: Date.now() };
+        setUserKeys({ ...userKeys });
+        localStorage.setItem('userKeys', JSON.stringify(userKeys));
       }
       setCurrentUser(login);
     } else {
@@ -89,46 +96,58 @@ function App() {
     }
   };
 
-  // Зміна повідомлення
   const handleMessageChange = (event) => {
     setMessage(event.target.value);
   };
 
-  // Шифрування повідомлення
   const encryptMessage = (recipient) => {
     const sender = currentUser;
+    console.log('Encrypting message for recipient:', recipient);
+
     if (!userKeys[sender] || !userKeys[recipient]) {
       alert('Неможливо знайти ключі для користувачів');
+      console.error('Missing keys for sender or recipient', { sender, recipient });
       return;
     }
 
     const senderKeyPair = userKeys[sender].keyPair;
     const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair.publicKey, 'hex');
 
+    console.log('Sender KeyPair:', senderKeyPair);
+    console.log('Recipient Public Key:', recipientPublicKey);
+
     const sharedSecret = senderKeyPair.derive(recipientPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
+    console.log('Shared secret (hex):', sharedSecretHex);
+
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
     return encrypted;
   };
 
-  // Дешифрування повідомлення
   const decryptMessage = (encryptedMessage, sender) => {
     const recipient = currentUser;
+    console.log('Decrypting message from sender:', sender);
+
     if (!userKeys[recipient] || !userKeys[sender]) {
       alert('Неможливо знайти ключі для користувачів');
+      console.error('Missing keys for recipient or sender', { recipient, sender });
       return 'Помилка при дешифруванні';
     }
 
     const recipientKeyPair = userKeys[recipient].keyPair;
     const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair.publicKey, 'hex');
 
+    console.log('Recipient KeyPair:', recipientKeyPair);
+    console.log('Sender Public Key:', senderPublicKey);
+
     const sharedSecret = recipientKeyPair.derive(senderPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
+    console.log('Shared secret (hex) for decryption:', sharedSecretHex);
+
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex).toString(CryptoJS.enc.Utf8);
     return decrypted || 'Помилка при дешифруванні';
   };
 
-  // Відправка повідомлення
   const sendMessage = () => {
     if (!message) return;
     const encrypted = encryptMessage(recipient);
@@ -141,17 +160,15 @@ function App() {
       encrypted: true,
     };
 
-    // Додаємо повідомлення до Firebase
     const messagesRef = ref(db, 'messages/' + Date.now());
     set(messagesRef, newMsg);
 
-    // Додаємо повідомлення до історії чату
     const updatedMessages = [...chatMessages, newMsg];
     setChatMessages(updatedMessages);
+    localStorage.setItem('chatMessages', JSON.stringify(updatedMessages));
     setMessage('');
   };
 
-  // Показ повідомлень для поточного користувача
   const displayMessages = () => {
     return chatMessages.map((msg, index) => {
       if (msg.recipient === currentUser) {
