@@ -45,13 +45,26 @@ function App() {
 
     const now = Date.now();
     Object.keys(storedKeys).forEach((user) => {
-      if (now - storedKeys[user].timestamp > 3600000) { // 1 година
+      // Перевірка на наявність ключа та його термін дії
+      if (!storedKeys[user].keyPair) {
+        storedKeys[user].keyPair = ec.genKeyPair(); // Генерація нового ключа, якщо його немає
+        storedKeys[user].timestamp = now;
+      } else if (now - storedKeys[user].timestamp > 3600000) { // 1 година
         storedKeys[user].keyPair = ec.genKeyPair();
         storedKeys[user].timestamp = now;
       }
     });
 
-    setUserKeys(storedKeys);
+    // Зберігання ключів у правильному форматі
+    const updatedKeys = Object.keys(storedKeys).reduce((acc, user) => {
+      acc[user] = {
+        keyPair: storedKeys[user].keyPair.getPublic('hex'), // Зберігання публічного ключа у форматі hex
+        timestamp: storedKeys[user].timestamp,
+      };
+      return acc;
+    }, {});
+
+    setUserKeys(updatedKeys);
     setChatMessages(storedMessages);
 
     // Отримуємо повідомлення з Firebase
@@ -92,7 +105,11 @@ function App() {
       alert('Неможливо знайти ключі для користувачів');
       return;
     }
-    const sharedSecret = userKeys[sender].keyPair.derive(userKeys[recipient].keyPair.getPublic());
+    
+    const senderKeyPair = ec.keyFromPrivate(userKeys[sender].keyPair);
+    const recipientPublicKey = ec.keyFromPublic(userKeys[recipient].keyPair, 'hex');
+    
+    const sharedSecret = senderKeyPair.derive(recipientPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
     const encrypted = CryptoJS.AES.encrypt(message, sharedSecretHex).toString();
     return encrypted;
@@ -105,7 +122,11 @@ function App() {
       alert('Неможливо знайти ключі для користувачів');
       return 'Помилка при дешифруванні';
     }
-    const sharedSecret = userKeys[recipient].keyPair.derive(userKeys[sender].keyPair.getPublic());
+    
+    const recipientKeyPair = ec.keyFromPrivate(userKeys[recipient].keyPair);
+    const senderPublicKey = ec.keyFromPublic(userKeys[sender].keyPair, 'hex');
+    
+    const sharedSecret = recipientKeyPair.derive(senderPublicKey.getPublic());
     const sharedSecretHex = sharedSecret.toString(16);
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, sharedSecretHex).toString(CryptoJS.enc.Utf8);
     return decrypted || 'Помилка при дешифруванні';
