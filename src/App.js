@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, get, child } from "firebase/database";
+import { getDatabase, ref, set, onValue, get, } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
