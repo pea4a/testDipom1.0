@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
-import messages from './messages';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue } from "firebase/database";
+import { getDatabase, ref, set, onValue, get, child } from "firebase/database";
 
 const ec = new EC.ec('secp256k1');
 
@@ -33,40 +32,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [recipient, setRecipient] = useState('bob');
   const [message, setMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState(messages);
+  const [chatMessages, setChatMessages] = useState([]);
   const [userKeys, setUserKeys] = useState({});
 
   useEffect(() => {
-    const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-    const storedKeys = JSON.parse(localStorage.getItem('userKeys')) || {};
-
-    const now = Date.now();
-    Object.keys(storedKeys).forEach((user) => {
-      if (now - storedKeys[user].timestamp > 3600000) {
-        const newKeyPair = ec.genKeyPair();
-        storedKeys[user].keyPair = {
-          privateKey: newKeyPair.getPrivate('hex'),
-          publicKey: newKeyPair.getPublic('hex'),
-        };
-        storedKeys[user].timestamp = now;
-      }
-    });
-
-    console.log('Loaded keys from localStorage:', storedKeys);
-
-    const deserializedKeys = Object.keys(storedKeys).reduce((acc, user) => {
-      acc[user] = {
-        keyPair: ec.keyFromPrivate(storedKeys[user].keyPair.privateKey, 'hex'),
-        timestamp: storedKeys[user].timestamp,
-      };
-      return acc;
-    }, {});
-
-    console.log('Deserialized keys:', deserializedKeys);
-
-    setUserKeys(deserializedKeys);
-    setChatMessages(storedMessages);
-
     const messagesRef = ref(db, 'messages/');
     onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
@@ -77,19 +46,34 @@ function App() {
     });
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (users[login] && users[login].password === password) {
       console.log('User logged in:', login);
-      if (!userKeys[login]) {
+      const userRef = ref(db, `users/${login}`);
+
+      // Спроба отримати ключі користувача з Firebase
+      const snapshot = await get(userRef);
+      let keyPair;
+
+      if (snapshot.exists()) {
+        console.log('Keys found in Firebase for user:', login);
+        const data = snapshot.val();
+        keyPair = {
+          privateKey: ec.keyFromPrivate(data.privateKey, 'hex'),
+          publicKey: data.publicKey, // публічний ключ для шифрування
+        };
+      } else {
+        console.log('No keys found in Firebase, generating new keys...');
         const newKeyPair = ec.genKeyPair();
-        const keyPair = {
+        keyPair = {
           privateKey: newKeyPair.getPrivate('hex'),
           publicKey: newKeyPair.getPublic('hex'),
         };
-        userKeys[login] = { keyPair, timestamp: Date.now() };
-        setUserKeys({ ...userKeys });
-        localStorage.setItem('userKeys', JSON.stringify(userKeys));
+        // Зберегти пару ключів у Firebase
+        await set(userRef, keyPair);
       }
+
+      setUserKeys({ ...userKeys, [login]: { keyPair } });
       setCurrentUser(login);
     } else {
       alert('Невірний логін або пароль');
@@ -148,8 +132,20 @@ function App() {
     return decrypted || 'Помилка при дешифруванні';
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message) return;
+
+    // Отримання ключів для відправника та отримувача з Firebase
+    const recipientKeyRef = ref(db, `users/${recipient}`);
+    const recipientSnapshot = await get(recipientKeyRef);
+
+    if (recipientSnapshot.exists()) {
+      setUserKeys({ ...userKeys, [recipient]: { keyPair: recipientSnapshot.val() } });
+    } else {
+      alert('Неможливо знайти ключ отримувача');
+      return;
+    }
+
     const encrypted = encryptMessage(recipient);
     if (!encrypted) return;
 
@@ -161,11 +157,8 @@ function App() {
     };
 
     const messagesRef = ref(db, 'messages/' + Date.now());
-    set(messagesRef, newMsg);
+    await set(messagesRef, newMsg);
 
-    const updatedMessages = [...chatMessages, newMsg];
-    setChatMessages(updatedMessages);
-    localStorage.setItem('chatMessages', JSON.stringify(updatedMessages));
     setMessage('');
   };
 
@@ -241,4 +234,4 @@ function App() {
   );
 }
 
-export default App;
+export default App
