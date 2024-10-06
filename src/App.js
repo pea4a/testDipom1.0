@@ -4,7 +4,7 @@ import CryptoJS from 'crypto-js';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue } from "firebase/database";
 import './App.css';
-
+import EmailIcon from '@mui/icons-material/Email';
 const ec = new EC.ec('secp256k1');
 
 // Firebase configuration
@@ -37,7 +37,6 @@ function App() {
   const [userKeys, setUserKeys] = useState({});
 
   useEffect(() => {
-    // Отримуємо повідомлення з Firebase
     const messagesRef = ref(db, 'messages/');
     onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
@@ -47,7 +46,6 @@ function App() {
       }
     });
 
-    // Отримуємо ключі користувачів з Firebase
     const keysRef = ref(db, 'keys/');
     onValue(keysRef, (snapshot) => {
       const data = snapshot.val();
@@ -124,26 +122,15 @@ function App() {
 
   const displayMessages = () => {
     return chatMessages.map((msg, index) => {
-      if (msg.recipient === currentUser) {
-        const decrypted = decryptMessage(msg.message, msg.sender);
-        return (
-          <div key={index}>
-            <strong>{msg.sender}:</strong> {decrypted}
-          </div>
-        );
-      } else if (msg.sender === currentUser) {
-        return (
-          <div key={index}>
-            <strong>{msg.sender}:</strong> {msg.message}
-          </div>
-        );
-      } else {
-        return (
-          <div key={index}>
-            <strong>{msg.sender}:</strong> <em>Зашифроване повідомлення</em>
-          </div>
-        );
-      }
+      const decryptedMessage = msg.recipient === currentUser
+        ? decryptMessage(msg.message, msg.sender)
+        : msg.message;
+        
+      return (
+        <div className="message-bubble" key={index}>
+          <strong>{msg.sender}:</strong> {msg.recipient === currentUser ? decryptedMessage : <em>Зашифроване повідомлення</em>}
+        </div>
+      );
     });
   };
 
@@ -172,29 +159,33 @@ function App() {
   }
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>Чат</h1>
-      <div>
-        <h2>Ви увійшли як: {currentUser}</h2>
-        <select value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-          <option value="alice">Аліса</option>
-          <option value="bob">Боб</option>
-          <option value="carl">Карл</option>
-        </select>
-      </div>
-
-      <div>
-        <h2>Повідомлення</h2>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} />
-        <button onClick={sendMessage}>Відправити</button>
-      </div>
-
-      <div>
-        <h2>Чат:</h2>
-        {displayMessages()}
+    <div className="chat-container">
+      <h2>вітаємо, {currentUser}!</h2>
+      <div className="chat-box">
+        <div className="messages">
+          {displayMessages()}
+        </div>
+        <div className="input-container">
+          <div className="input-fields">
+            <input
+              type="text"
+              placeholder="Введіть повідомлення"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Кому?"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+            />
+          </div>
+          <button className="send-button" onClick={sendMessage}><EmailIcon/></button>
+        </div>
       </div>
     </div>
   );
+  
 }
 
 export default App;
