@@ -179,7 +179,7 @@ function App() {
               onChange={(e) => setRecipient(e.target.value)}
             />
           </div>
-          <button className="send-button" onClick={sendMessage}>send</button>
+          <button className="send-button" onClick={sendMessage}>✉️</button>
         </div>
       </div>
     </div>
