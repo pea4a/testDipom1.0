@@ -31,7 +31,7 @@ function App() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [recipient, setRecipient] = useState('bob');
+  const [recipient, setRecipient] = useState('');
   const [message, setMessage] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [userKeys, setUserKeys] = useState({});
