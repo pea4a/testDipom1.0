@@ -4,7 +4,6 @@ import CryptoJS from 'crypto-js';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue } from "firebase/database";
 import './App.css';
-import EmailIcon from '@mui/icons-material/Email';
 const ec = new EC.ec('secp256k1');
 
 // Firebase configuration
@@ -180,7 +179,7 @@ function App() {
               onChange={(e) => setRecipient(e.target.value)}
             />
           </div>
-          <button className="send-button" onClick={sendMessage}><EmailIcon/></button>
+          <button className="send-button" onClick={sendMessage}>send</button>
         </div>
       </div>
     </div>
