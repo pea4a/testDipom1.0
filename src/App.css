@@ -159,7 +159,7 @@ body, html {
   flex-direction: column;
   align-items: center;
   padding: 20px;
-  background: linear-gradient(to bottom, #00ff26, #00ff7f);
+  background: linear-gradient(to bottom, #0bff2f8d, #00ff7f);
   height: 100vh;
   color: white;
 }
