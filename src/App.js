@@ -164,7 +164,9 @@ function App() {
         <div className="messages">
           {displayMessages()}
         </div>
-        <div className="input-container">
+        
+      </div>
+      <div className="input-container">
           <div className="input-fields">
             <input
               type="text"
@@ -181,7 +183,6 @@ function App() {
           </div>
           <button className="send-button" onClick={sendMessage}>✉️</button>
         </div>
-      </div>
     </div>
   );
   
