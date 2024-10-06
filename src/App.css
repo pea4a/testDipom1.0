@@ -36,6 +36,7 @@
     transform: rotate(360deg);
   }
 }
+
 * {
   margin: 0;
   padding: 0;
@@ -152,7 +153,8 @@ body, html {
     font-size: 0.9em;
   }
 }
-..chat-container {
+
+.chat-container {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -171,34 +173,34 @@ body, html {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  position: relative; /* Для позиціонування елементів відносно цього контейнера */
+  position: relative;
 }
 
 .messages {
   flex-grow: 1;
-  overflow-y: auto; /* Додаємо вертикальну прокрутку */
+  overflow-y: auto;
   margin-bottom: 10px;
-  max-height: 100%; /* Контролюємо максимальну висоту */
+  max-height: 100%;
 }
 
 .input-container {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-top: 10px;
   position: absolute;
-  bottom: 0; /* Встановлюємо блок введення повідомлення на дно */
+  bottom: 0;
   width: 100%;
   padding: 10px;
-  background-color: #fff; /* Білий фон для блоку введення */
-  box-shadow: 0px -2px 5px rgba(0, 0, 0, 0.1); /* Трохи тіні, щоб відокремити блок */
+  background-color: #fff;
+  box-shadow: 0px -2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .input-fields {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 70%;
+  width: 75%; /* Додаємо більше простору для полів введення */
 }
 
 .input-fields input[type="text"] {
@@ -212,13 +214,13 @@ body, html {
 
 .send-button {
   background-color: #1ad636;
-  padding: 10px 20px;
+  padding: 10px;
   border: none;
   border-radius: 10px;
   color: black;
   cursor: pointer;
-  width: 25%;
-  height: 100%;
+  width: 22%; /* Обмежуємо ширину кнопки */
+  height: auto; /* Забезпечує автоматичну висоту */
 }
 
 .send-button:hover {
