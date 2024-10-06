@@ -3,6 +3,7 @@ import EC from 'elliptic';
 import CryptoJS from 'crypto-js';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue } from "firebase/database";
+import './App.css';
 
 const ec = new EC.ec('secp256k1');
 
@@ -114,11 +115,9 @@ function App() {
       encrypted: true,
     };
 
-    // Додаємо повідомлення до Firebase
     const messagesRef = ref(db, 'messages/' + Date.now());
     set(messagesRef, newMsg);
 
-    // Додаємо повідомлення до історії чату
     setChatMessages(prevMessages => [...prevMessages, newMsg]);
     setMessage('');
   };
@@ -150,21 +149,24 @@ function App() {
 
   if (!currentUser) {
     return (
-      <div>
-        <h1>Авторизація</h1>
-        <input
-          type="text"
-          placeholder="Логін"
-          value={login}
-          onChange={(e) => setLogin(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button onClick={handleLogin}>Увійти</button>
+      <div className="login-container">
+        <div className="login-box">
+          <h1>вітаємо</h1>
+          <p>авторизуйтесь для продовження</p>
+          <input
+            type="text"
+            placeholder="ІМ'Я"
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="ПАРОЛЬ"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button onClick={handleLogin}>увійти</button>
+        </div>
       </div>
     );
   }
