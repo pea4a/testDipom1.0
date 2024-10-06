@@ -171,20 +171,14 @@ body, html {
   display: flex;
   flex-direction: column;
   padding: 20px;
+  position: relative; /* Для позиціонування елементів відносно цього контейнера */
 }
 
 .messages {
   flex-grow: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* Додаємо вертикальну прокрутку */
   margin-bottom: 10px;
-}
-
-.message-bubble {
-  background-color: #20c997;
-  color: black;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 15px;
+  max-height: 100%; /* Контролюємо максимальну висоту */
 }
 
 .input-container {
@@ -192,6 +186,12 @@ body, html {
   justify-content: space-between;
   align-items: flex-start;
   margin-top: 10px;
+  position: absolute;
+  bottom: 0; /* Встановлюємо блок введення повідомлення на дно */
+  width: 100%;
+  padding: 10px;
+  background-color: #fff; /* Білий фон для блоку введення */
+  box-shadow: 0px -2px 5px rgba(0, 0, 0, 0.1); /* Трохи тіні, щоб відокремити блок */
 }
 
 .input-fields {
