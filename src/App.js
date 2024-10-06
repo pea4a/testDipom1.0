@@ -22,7 +22,7 @@ const db = getDatabase(app);
 
 const users = {
   Artur: { password: 'pea4a'},
-  alice: { password: 'alice123' },
+  Alice: { password: 'alice123' },
   bob: { password: 'bob123' },
   carl: { password: 'carl123' },
 };
