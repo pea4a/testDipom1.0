@@ -181,7 +181,7 @@ function App() {
               onChange={(e) => setRecipient(e.target.value)}
             />
           </div>
-          <button className="send-button" onClick={sendMessage}><span  role='img'>✉️</span></button>
+          <button className="send-button" onClick={sendMessage}><span role='img'>✉️</span></button>
         </div>
     </div>
   );
