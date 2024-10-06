@@ -177,6 +177,7 @@ body, html {
 }
 
 .messages {
+  color: black;
   flex-grow: 1;
   overflow-y: auto;
   margin-bottom: 10px;
