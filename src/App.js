@@ -21,9 +21,10 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 const users = {
-  alice: { password: 'alice123' },
-  bob: { password: 'bob123' },
-  carl: { password: 'carl123' },
+  Artur: { password: 'pea4a'},
+  Alice: { password: 'alice123' },
+  Bob: { password: 'bob123' },
+  Carl: { password: 'carl123' },
 };
 
 function App() {
