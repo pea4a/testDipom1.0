@@ -116,7 +116,7 @@ function App() {
     const messagesRef = ref(db, 'messages/' + Date.now());
     set(messagesRef, newMsg);
 
-    setChatMessages(prevMessages => [...prevMessages, newMsg]);
+    setChatMessages(prevMessages => [...prevMessages,]);
     setMessage('');
   };
 
